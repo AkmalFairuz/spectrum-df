@@ -150,6 +150,8 @@ func (c *Conn) ReadPacket() (packet.Packet, error) {
 	if err != nil {
 		if !errors.Is(err, context.Canceled) && !strings.Contains(err.Error(), "connection reset by peer") {
 			c.log.Error("error reading packet", err)
+		} else {
+			c.log.Debug("ignored error reading packet", err)
 		}
 		return nil, err
 	}
