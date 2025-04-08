@@ -6,14 +6,17 @@ import (
 	"github.com/cooldogedev/spectrum-df/util"
 	"github.com/df-mc/dragonfly/server/session"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
+	"log/slog"
+	"net"
 )
 
 type Listener struct {
+	log            *slog.Logger
 	authentication util.Authentication
 	transport      tr.Transport
 }
 
-func NewListener(addr string, authentication util.Authentication, transport tr.Transport) (*Listener, error) {
+func NewListener(log *slog.Logger, addr string, authentication util.Authentication, transport tr.Transport) (*Listener, error) {
 	if transport == nil {
 		transport = tr.NewSpectral()
 	}
@@ -22,6 +25,7 @@ func NewListener(addr string, authentication util.Authentication, transport tr.T
 		return nil, err
 	}
 	return &Listener{
+		log:            log,
 		authentication: authentication,
 		transport:      transport,
 	}, nil
@@ -38,7 +42,11 @@ func (l *Listener) Accept() (session.Conn, error) {
 	if l.authentication != nil {
 		authenticator = l.authentication.Authenticate
 	}
-	return internal.NewConn(c, authenticator, packet.NewClientPool())
+	log := l.log
+	if c2, ok := c.(interface{ RemoteAddr() net.Addr }); ok {
+		log = log.With("remote_addr", c2.RemoteAddr())
+	}
+	return internal.NewConn(log, c, authenticator, packet.NewClientPool())
 }
 
 // Disconnect ...

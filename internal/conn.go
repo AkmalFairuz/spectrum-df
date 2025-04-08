@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"log/slog"
 	"net"
 	"sync"
 	"time"
@@ -30,6 +31,8 @@ const (
 )
 
 type Conn struct {
+	log *slog.Logger
+
 	addr *net.UDPAddr
 	conn io.ReadWriteCloser
 
@@ -56,8 +59,10 @@ type Conn struct {
 	sendBuffer   [][]byte
 }
 
-func NewConn(conn io.ReadWriteCloser, authenticator Authenticator, pool packet.Pool) (*Conn, error) {
+func NewConn(log *slog.Logger, conn io.ReadWriteCloser, authenticator Authenticator, pool packet.Pool) (*Conn, error) {
 	c := &Conn{
+		log: log,
+
 		conn: conn,
 
 		reader: proto.NewReader(conn),
@@ -95,6 +100,8 @@ func NewConn(conn io.ReadWriteCloser, authenticator Authenticator, pool packet.P
 		_ = c.Close()
 		return nil, err
 	}
+
+	c.log = c.log.With("username", c.identityData.DisplayName)
 
 	if authenticator != nil && !authenticator(c.identityData, connectionRequest.Token) {
 		_ = c.Close()
@@ -140,6 +147,7 @@ func (c *Conn) handleFlusher() {
 func (c *Conn) ReadPacket() (packet.Packet, error) {
 	pk, err := c.read()
 	if err != nil {
+		c.log.Error("error reading packet", err)
 		return nil, err
 	}
 
