@@ -354,6 +354,13 @@ func (c *Conn) Close() (err error) {
 		close(c.ch)
 		close(c.flusher)
 		_ = c.conn.Close()
+
+		c.sendBufferMu.Lock()
+		defer c.sendBufferMu.Unlock()
+		for i := range c.sendBuffer {
+			c.sendBuffer[i] = nil
+		}
+		c.sendBuffer = nil
 		return
 	}
 }
