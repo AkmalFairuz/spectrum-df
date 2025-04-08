@@ -23,8 +23,10 @@ import (
 )
 
 const (
-	packetDecodeNeeded byte = iota
-	packetDecodeNotNeeded
+	flagPacketCompressed   = 0x01
+	flagPacketDecodeNeeded = 0x02
+
+	compressionThreshold = 256
 )
 
 type Conn struct {
@@ -46,8 +48,11 @@ type Conn struct {
 	header *packet.Header
 	pool   packet.Pool
 
-	ch chan struct{}
-	mu sync.Mutex
+	ch      chan struct{}
+	flusher chan struct{}
+
+	sendMu     sync.Mutex
+	sendBuffer [][]byte
 }
 
 func NewConn(conn io.ReadWriteCloser, authenticator Authenticator, pool packet.Pool) (*Conn, error) {
@@ -60,7 +65,8 @@ func NewConn(conn io.ReadWriteCloser, authenticator Authenticator, pool packet.P
 		header: &packet.Header{},
 		pool:   pool,
 
-		ch: make(chan struct{}),
+		ch:      make(chan struct{}),
+		flusher: make(chan struct{}, 32),
 	}
 
 	connectionRequestPacket, err := c.expect(packet2.IDConnectionRequest)
@@ -98,6 +104,29 @@ func NewConn(conn io.ReadWriteCloser, authenticator Authenticator, pool packet.P
 		_ = c.Close()
 		return nil, err
 	}
+
+	go func() {
+		ticker := time.NewTicker(time.Second / 20)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				if err := c.internalFlush(); err != nil {
+					_ = c.Close()
+					return
+				}
+			case <-c.flusher:
+				if err := c.internalFlush(); err != nil {
+					_ = c.Close()
+					return
+				}
+			case <-c.ch:
+				return
+			}
+		}
+	}()
+
 	return c, nil
 }
 
@@ -118,8 +147,8 @@ func (c *Conn) ReadPacket() (packet.Packet, error) {
 
 // WritePacket ...
 func (c *Conn) WritePacket(pk packet.Packet) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.sendMu.Lock()
+	defer c.sendMu.Unlock()
 
 	buf := BufferPool.Get().(*bytes.Buffer)
 	defer func() {
@@ -133,19 +162,55 @@ func (c *Conn) WritePacket(pk packet.Packet) error {
 		return err
 	}
 
-	var decodeByte byte
-	if PacketExists(pk.ID()) {
-		decodeByte = packetDecodeNeeded
-	} else {
-		decodeByte = packetDecodeNotNeeded
-	}
 	pk.Marshal(protocol.NewWriter(buf, c.shieldID))
-	return c.writer.Write(append([]byte{decodeByte}, snappy.Encode(nil, buf.Bytes())...))
+	c.sendBuffer = append(c.sendBuffer, buf.Bytes())
+	return nil
 }
 
 // Flush ...
 func (c *Conn) Flush() error {
+	c.sendMu.Lock()
+	defer c.sendMu.Unlock()
+
+	if len(c.sendBuffer) == 0 {
+		return nil
+	}
+
+	c.flusher <- struct{}{}
 	return nil
+}
+
+// internalFlush ...
+func (c *Conn) internalFlush() error {
+	c.sendMu.Lock()
+	defer c.sendMu.Unlock()
+
+	if len(c.sendBuffer) == 0 {
+		return nil
+	}
+
+	buf := BufferPool.Get().(*bytes.Buffer)
+	defer func() {
+		buf.Reset()
+		BufferPool.Put(buf)
+	}()
+
+	for i, b := range c.sendBuffer {
+		if _, err := buf.Write(b); err != nil {
+			return err
+		}
+		c.sendBuffer[i] = nil // improve GC
+	}
+
+	c.sendBuffer = c.sendBuffer[:0]
+	flags := byte(0)
+
+	if len(buf.Bytes()) > compressionThreshold {
+		flags |= flagPacketCompressed
+		return c.writer.Write(append([]byte{flags}, snappy.Encode(nil, buf.Bytes())...))
+	}
+
+	return c.writer.Write(append([]byte{flags}, buf.Bytes()...))
 }
 
 // ClientData ...
@@ -275,12 +340,20 @@ func (c *Conn) read() (packet.Packet, error) {
 			return nil, err
 		}
 
-		decompressed, err := snappy.Decode(nil, payload)
-		if err != nil {
-			return nil, err
+		flags := payload[0]
+
+		var buf *bytes.Buffer
+
+		if flags&flagPacketCompressed != 0 {
+			decompressed, err := snappy.Decode(nil, payload)
+			if err != nil {
+				return nil, err
+			}
+			buf = bytes.NewBuffer(decompressed)
+		} else {
+			buf = bytes.NewBuffer(payload)
 		}
 
-		buf := bytes.NewBuffer(decompressed)
 		header := &packet.Header{}
 		if err := header.Read(buf); err != nil {
 			return nil, err
