@@ -193,7 +193,8 @@ func (c *Conn) internalFlush() error {
 	c.sendMu.Lock()
 	defer c.sendMu.Unlock()
 
-	if len(c.sendBuffer) == 0 {
+	sendBufferLen := len(c.sendBuffer)
+	if sendBufferLen == 0 {
 		return nil
 	}
 
@@ -203,7 +204,7 @@ func (c *Conn) internalFlush() error {
 		BufferPool.Put(buf)
 	}()
 
-	if err := protocol.WriteVaruint32(buf, uint32(len(c.sendBuffer))); err != nil {
+	if err := protocol.WriteVaruint32(buf, uint32(sendBufferLen)); err != nil {
 		return err
 	}
 
@@ -218,16 +219,15 @@ func (c *Conn) internalFlush() error {
 	}
 
 	c.sendBuffer = c.sendBuffer[:0]
-	flags := byte(0)
 
-	prepend := []byte{flags}
+	flags := byte(0)
 
 	if len(buf.Bytes()) > compressionThreshold {
 		flags |= flagPacketCompressed
-		return c.writer.Write(append(prepend, snappy.Encode(nil, buf.Bytes())...))
+		return c.writer.Write(append([]byte{flags}, snappy.Encode(nil, buf.Bytes())...))
 	}
 
-	return c.writer.Write(append(prepend, buf.Bytes()...))
+	return c.writer.Write(append([]byte{flags}, buf.Bytes()...))
 }
 
 // ClientData ...
