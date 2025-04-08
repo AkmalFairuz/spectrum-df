@@ -23,8 +23,8 @@ import (
 )
 
 const (
-	flagPacketCompressed   = 0x01
-	flagPacketDecodeNeeded = 0x02
+	flagPacketCompressed = 0x01
+	flagPacketNotNeeded  = 0x02
 
 	compressionThreshold = 256
 )
