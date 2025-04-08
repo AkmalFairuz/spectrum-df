@@ -332,6 +332,7 @@ func (c *Conn) Close() (err error) {
 		return errors.New("connection already closed")
 	default:
 		close(c.ch)
+		close(c.flusher)
 		_ = c.conn.Close()
 		return
 	}
