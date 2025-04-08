@@ -105,29 +105,32 @@ func NewConn(conn io.ReadWriteCloser, authenticator Authenticator, pool packet.P
 		return nil, err
 	}
 
-	go func() {
-		ticker := time.NewTicker(time.Second / 20)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				if err := c.internalFlush(); err != nil {
-					_ = c.Close()
-					return
-				}
-			case <-c.flusher:
-				if err := c.internalFlush(); err != nil {
-					_ = c.Close()
-					return
-				}
-			case <-c.ch:
-				return
-			}
-		}
-	}()
+	go c.handleFlusher()
 
 	return c, nil
+}
+
+// handleFlusher ...
+func (c *Conn) handleFlusher() {
+	ticker := time.NewTicker(time.Second / 20)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if err := c.internalFlush(); err != nil {
+				_ = c.Close()
+				return
+			}
+		case <-c.flusher:
+			if err := c.internalFlush(); err != nil {
+				_ = c.Close()
+				return
+			}
+		case <-c.ch:
+			return
+		}
+	}
 }
 
 // ReadPacket ...
