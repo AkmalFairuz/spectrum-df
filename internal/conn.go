@@ -192,10 +192,12 @@ func (c *Conn) Flush() error {
 // internalFlush ...
 func (c *Conn) internalFlush() error {
 	c.sendBufferMu.Lock()
+	pending := c.sendBuffer
+	c.sendBuffer = c.sendBuffer[:0]
+	c.sendBufferMu.Unlock()
 
-	sendBufferLen := len(c.sendBuffer)
+	sendBufferLen := len(pending)
 	if sendBufferLen == 0 {
-		c.sendBufferMu.Unlock()
 		return nil
 	}
 
@@ -206,35 +208,37 @@ func (c *Conn) internalFlush() error {
 	}()
 
 	if err := protocol.WriteVaruint32(buf, uint32(sendBufferLen)); err != nil {
-		c.sendBufferMu.Unlock()
 		return err
 	}
 
-	for i, b := range c.sendBuffer {
+	for i, b := range pending {
 		if err := protocol.WriteVaruint32(buf, uint32(len(b))); err != nil {
-			c.sendBufferMu.Unlock()
 			return err
 		}
 		if _, err := buf.Write(b); err != nil {
-			c.sendBufferMu.Unlock()
 			return err
 		}
-		c.sendBuffer[i] = nil // improve GC
+		pending[i] = nil // Improve GC
 	}
 
-	c.sendBuffer = c.sendBuffer[:0]
-	c.sendBufferMu.Unlock()
 	c.flushMu.Lock()
 	defer c.flushMu.Unlock()
 
+	payload := buf.Bytes()
 	flags := byte(0)
-
-	if len(buf.Bytes()) > compressionThreshold {
+	if len(payload) > compressionThreshold {
 		flags |= flagPacketCompressed
-		return c.writer.Write(append([]byte{flags}, snappy.Encode(nil, buf.Bytes())...))
+		compressed := snappy.Encode(nil, payload)
+		out := make([]byte, 1+len(compressed))
+		out[0] = flags
+		copy(out[1:], compressed)
+		return c.writer.Write(out)
 	}
 
-	return c.writer.Write(append([]byte{flags}, buf.Bytes()...))
+	out := make([]byte, 1+len(payload))
+	out[0] = flags
+	copy(out[1:], payload)
+	return c.writer.Write(out)
 }
 
 // ClientData ...
