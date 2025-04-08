@@ -67,6 +67,8 @@ func NewConn(conn io.ReadWriteCloser, authenticator Authenticator, pool packet.P
 
 		ch:      make(chan struct{}),
 		flusher: make(chan struct{}),
+
+		sendBuffer: make([][]byte, 0, 16),
 	}
 
 	connectionRequestPacket, err := c.expect(packet2.IDConnectionRequest)
@@ -98,14 +100,14 @@ func NewConn(conn io.ReadWriteCloser, authenticator Authenticator, pool packet.P
 		return nil, errors.New("authentication failed")
 	}
 
+	go c.handleFlusher()
+
 	c.runtimeID = uint64(crc32.ChecksumIEEE([]byte(c.identityData.XUID)))
 	c.uniqueID = int64(c.runtimeID)
 	if err := c.WritePacket(&packet2.ConnectionResponse{RuntimeID: c.runtimeID, UniqueID: c.uniqueID}); err != nil {
 		_ = c.Close()
 		return nil, err
 	}
-
-	go c.handleFlusher()
 
 	return c, nil
 }
