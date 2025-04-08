@@ -203,7 +203,12 @@ func (c *Conn) internalFlush() error {
 		BufferPool.Put(buf)
 	}()
 
+	l := make([]byte, 5)
+
 	for i, b := range c.sendBuffer {
+		if err := writeVaruint32(buf, uint32(len(b)), l); err != nil {
+			return err
+		}
 		if _, err := buf.Write(b); err != nil {
 			return err
 		}
