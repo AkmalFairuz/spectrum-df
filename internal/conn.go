@@ -205,6 +205,10 @@ func (c *Conn) internalFlush() error {
 
 	l := make([]byte, 5)
 
+	if err := writeVaruint32(buf, uint32(len(c.sendBuffer)), l); err != nil {
+		return err
+	}
+
 	for i, b := range c.sendBuffer {
 		if err := writeVaruint32(buf, uint32(len(b)), l); err != nil {
 			return err
@@ -218,12 +222,14 @@ func (c *Conn) internalFlush() error {
 	c.sendBuffer = c.sendBuffer[:0]
 	flags := byte(0)
 
+	prepend := []byte{flags}
+
 	if len(buf.Bytes()) > compressionThreshold {
 		flags |= flagPacketCompressed
-		return c.writer.Write(append([]byte{flags}, snappy.Encode(nil, buf.Bytes())...))
+		return c.writer.Write(append(prepend, snappy.Encode(nil, buf.Bytes())...))
 	}
 
-	return c.writer.Write(append([]byte{flags}, buf.Bytes()...))
+	return c.writer.Write(append(prepend, buf.Bytes()...))
 }
 
 // ClientData ...
