@@ -205,12 +205,10 @@ func (c *Conn) Flush() error {
 // internalFlush ...
 func (c *Conn) internalFlush() error {
 	c.sendBufferMu.Lock()
-	pending := c.sendBuffer
-	c.sendBuffer = c.sendBuffer[:0]
-	c.sendBufferMu.Unlock()
 
-	sendBufferLen := len(pending)
+	sendBufferLen := len(c.sendBuffer)
 	if sendBufferLen == 0 {
+		c.sendBufferMu.Unlock()
 		return nil
 	}
 
@@ -221,18 +219,24 @@ func (c *Conn) internalFlush() error {
 	}()
 
 	if err := protocol.WriteVaruint32(buf, uint32(sendBufferLen)); err != nil {
+		c.sendBufferMu.Unlock()
 		return err
 	}
 
-	for i, b := range pending {
+	for i, b := range c.sendBuffer {
 		if err := protocol.WriteVaruint32(buf, uint32(len(b))); err != nil {
+			c.sendBufferMu.Unlock()
 			return err
 		}
 		if _, err := buf.Write(b); err != nil {
+			c.sendBufferMu.Unlock()
 			return err
 		}
-		pending[i] = nil // Improve GC
+		c.sendBuffer[i] = nil // Improve GC
 	}
+
+	c.sendBuffer = c.sendBuffer[:0]
+	c.sendBufferMu.Unlock()
 
 	c.flushMu.Lock()
 	defer c.flushMu.Unlock()
