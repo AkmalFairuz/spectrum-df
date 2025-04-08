@@ -147,7 +147,9 @@ func (c *Conn) handleFlusher() {
 func (c *Conn) ReadPacket() (packet.Packet, error) {
 	pk, err := c.read()
 	if err != nil {
-		c.log.Error("error reading packet", err)
+		if !errors.Is(err, context.Canceled) {
+			c.log.Error("error reading packet", err)
+		}
 		return nil, err
 	}
 
