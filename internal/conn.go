@@ -66,7 +66,7 @@ func NewConn(conn io.ReadWriteCloser, authenticator Authenticator, pool packet.P
 		pool:   pool,
 
 		ch:      make(chan struct{}),
-		flusher: make(chan struct{}, 32),
+		flusher: make(chan struct{}),
 	}
 
 	connectionRequestPacket, err := c.expect(packet2.IDConnectionRequest)
