@@ -3,6 +3,7 @@ package internal
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -204,12 +205,12 @@ func (c *Conn) internalFlush() error {
 		BufferPool.Put(buf)
 	}()
 
-	if err := protocol.WriteVaruint32(buf, uint32(sendBufferLen)); err != nil {
+	if err := binary.Write(buf, binary.LittleEndian, uint16(sendBufferLen)); err != nil {
 		return err
 	}
 
 	for i, b := range c.sendBuffer {
-		if err := protocol.WriteVaruint32(buf, uint32(len(b))); err != nil {
+		if err := binary.Write(buf, binary.LittleEndian, uint32(len(b))); err != nil {
 			return err
 		}
 		if _, err := buf.Write(b); err != nil {
