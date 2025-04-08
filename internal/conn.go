@@ -3,7 +3,6 @@ package internal
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -52,8 +51,9 @@ type Conn struct {
 	ch      chan struct{}
 	flusher chan struct{}
 
-	sendMu     sync.Mutex
-	sendBuffer [][]byte
+	sendBufferMu sync.Mutex
+	flushMu      sync.Mutex
+	sendBuffer   [][]byte
 }
 
 func NewConn(conn io.ReadWriteCloser, authenticator Authenticator, pool packet.Pool) (*Conn, error) {
@@ -153,8 +153,8 @@ func (c *Conn) ReadPacket() (packet.Packet, error) {
 
 // WritePacket ...
 func (c *Conn) WritePacket(pk packet.Packet) error {
-	c.sendMu.Lock()
-	defer c.sendMu.Unlock()
+	c.sendBufferMu.Lock()
+	defer c.sendBufferMu.Unlock()
 
 	buf := BufferPool.Get().(*bytes.Buffer)
 	defer func() {
@@ -169,14 +169,14 @@ func (c *Conn) WritePacket(pk packet.Packet) error {
 	}
 
 	pk.Marshal(protocol.NewWriter(buf, c.shieldID))
-	c.sendBuffer = append(c.sendBuffer, buf.Bytes())
+	c.sendBuffer = append(c.sendBuffer, append([]byte(nil), buf.Bytes()...))
 	return nil
 }
 
 // Flush ...
 func (c *Conn) Flush() error {
-	c.sendMu.Lock()
-	defer c.sendMu.Unlock()
+	c.sendBufferMu.Lock()
+	defer c.sendBufferMu.Unlock()
 
 	if len(c.sendBuffer) == 0 {
 		return nil
@@ -191,11 +191,11 @@ func (c *Conn) Flush() error {
 
 // internalFlush ...
 func (c *Conn) internalFlush() error {
-	c.sendMu.Lock()
-	defer c.sendMu.Unlock()
+	c.sendBufferMu.Lock()
 
 	sendBufferLen := len(c.sendBuffer)
 	if sendBufferLen == 0 {
+		c.sendBufferMu.Unlock()
 		return nil
 	}
 
@@ -205,21 +205,27 @@ func (c *Conn) internalFlush() error {
 		BufferPool.Put(buf)
 	}()
 
-	if err := binary.Write(buf, binary.LittleEndian, uint16(sendBufferLen)); err != nil {
+	if err := protocol.WriteVaruint32(buf, uint32(sendBufferLen)); err != nil {
+		c.sendBufferMu.Unlock()
 		return err
 	}
 
 	for i, b := range c.sendBuffer {
-		if err := binary.Write(buf, binary.LittleEndian, uint32(len(b))); err != nil {
+		if err := protocol.WriteVaruint32(buf, uint32(len(b))); err != nil {
+			c.sendBufferMu.Unlock()
 			return err
 		}
 		if _, err := buf.Write(b); err != nil {
+			c.sendBufferMu.Unlock()
 			return err
 		}
 		c.sendBuffer[i] = nil // improve GC
 	}
 
 	c.sendBuffer = c.sendBuffer[:0]
+	c.sendBufferMu.Unlock()
+	c.flushMu.Lock()
+	defer c.flushMu.Unlock()
 
 	flags := byte(0)
 
