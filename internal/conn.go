@@ -194,6 +194,8 @@ func (c *Conn) Flush() error {
 	}
 
 	select {
+	case <-c.ch:
+		return errors.New("connection closed")
 	case c.flusher <- struct{}{}:
 	default:
 	}
