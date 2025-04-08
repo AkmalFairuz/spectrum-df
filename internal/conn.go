@@ -176,7 +176,10 @@ func (c *Conn) Flush() error {
 		return nil
 	}
 
-	c.flusher <- struct{}{}
+	select {
+	case c.flusher <- struct{}{}:
+	default:
+	}
 	return nil
 }
 
