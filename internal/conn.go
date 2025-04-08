@@ -10,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -147,7 +148,7 @@ func (c *Conn) handleFlusher() {
 func (c *Conn) ReadPacket() (packet.Packet, error) {
 	pk, err := c.read()
 	if err != nil {
-		if !errors.Is(err, context.Canceled) {
+		if !errors.Is(err, context.Canceled) && !strings.Contains(err.Error(), "connection reset by peer") {
 			c.log.Error("error reading packet", err)
 		}
 		return nil, err
