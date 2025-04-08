@@ -351,13 +351,13 @@ func (c *Conn) read() (packet.Packet, error) {
 		var buf *bytes.Buffer
 
 		if flags&flagPacketCompressed != 0 {
-			decompressed, err := snappy.Decode(nil, payload)
+			decompressed, err := snappy.Decode(nil, payload[1:])
 			if err != nil {
 				return nil, err
 			}
 			buf = bytes.NewBuffer(decompressed)
 		} else {
-			buf = bytes.NewBuffer(payload)
+			buf = bytes.NewBuffer(payload[1:])
 		}
 
 		header := &packet.Header{}
