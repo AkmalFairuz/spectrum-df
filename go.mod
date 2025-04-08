@@ -39,4 +39,4 @@ require (
 	golang.org/x/tools v0.31.0 // indirect
 )
 
-replace github.com/cooldogedev/spectrum => github.com/akmalfairuz/spectrum v0.0.0-20250408110556-5ca91d1a0506
+replace github.com/cooldogedev/spectrum => github.com/akmalfairuz/spectrum v0.0.0-20250408113508-a0cb9280c082
