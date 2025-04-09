@@ -375,7 +375,6 @@ func (c *Conn) Close() (err error) {
 		return errors.New("connection already closed")
 	default:
 		close(c.ch)
-		_ = c.Flush() // try flush
 
 		c.sendBufferMu.Lock()
 		for i := range c.sendBuffer {
