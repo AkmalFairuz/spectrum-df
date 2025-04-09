@@ -54,6 +54,7 @@ type Conn struct {
 
 	ch      chan struct{}
 	flusher chan struct{}
+	running sync.WaitGroup
 
 	sendBufferMu sync.Mutex
 	flushMu      sync.Mutex
@@ -109,6 +110,7 @@ func NewConn(log *slog.Logger, conn io.ReadWriteCloser, authenticator Authentica
 		return nil, errors.New("authentication failed")
 	}
 
+	c.running.Add(1)
 	go c.handleFlusher()
 
 	c.runtimeID = uint64(crc32.ChecksumIEEE([]byte(c.identityData.XUID)))
@@ -125,6 +127,7 @@ func NewConn(log *slog.Logger, conn io.ReadWriteCloser, authenticator Authentica
 func (c *Conn) handleFlusher() {
 	ticker := time.NewTicker(time.Second / 20)
 	defer ticker.Stop()
+	defer c.running.Done()
 
 	for {
 		select {
@@ -168,6 +171,9 @@ func (c *Conn) ReadPacket() (packet.Packet, error) {
 func (c *Conn) WritePacket(pk packet.Packet) error {
 	c.sendBufferMu.Lock()
 	defer c.sendBufferMu.Unlock()
+	if c.sendBuffer == nil {
+		return errors.New("connection closed")
+	}
 
 	buf := BufferPool.Get().(*bytes.Buffer)
 	defer func() {
@@ -196,8 +202,6 @@ func (c *Conn) Flush() error {
 	}
 
 	select {
-	case <-c.ch:
-		return errors.New("connection closed")
 	case c.flusher <- struct{}{}:
 	default:
 	}
@@ -371,15 +375,17 @@ func (c *Conn) Close() (err error) {
 		return errors.New("connection already closed")
 	default:
 		close(c.ch)
-		close(c.flusher)
-		_ = c.conn.Close()
 
 		c.sendBufferMu.Lock()
-		defer c.sendBufferMu.Unlock()
 		for i := range c.sendBuffer {
 			c.sendBuffer[i] = nil
 		}
 		c.sendBuffer = nil
+		c.sendBufferMu.Unlock()
+
+		c.running.Wait()
+		close(c.flusher)
+		_ = c.conn.Close()
 		return
 	}
 }
