@@ -14,6 +14,7 @@ type Listener struct {
 	log            *slog.Logger
 	authentication util.Authentication
 	transport      tr.Transport
+	chunkRadius    int
 }
 
 func NewListener(log *slog.Logger, addr string, authentication util.Authentication, transport tr.Transport) (*Listener, error) {
@@ -28,7 +29,13 @@ func NewListener(log *slog.Logger, addr string, authentication util.Authenticati
 		log:            log,
 		authentication: authentication,
 		transport:      transport,
+		chunkRadius:    16,
 	}, nil
+}
+
+// SetChunkRadius sets the chunk radius for the listener.
+func (l *Listener) SetChunkRadius(radius int) {
+	l.chunkRadius = radius
 }
 
 // Accept ...
@@ -46,7 +53,7 @@ func (l *Listener) Accept() (session.Conn, error) {
 	if c2, ok := c.(interface{ RemoteAddr() net.Addr }); ok {
 		log = log.With("remote_addr", c2.RemoteAddr())
 	}
-	return internal.NewConn(log, c, authenticator, packet.NewClientPool())
+	return internal.NewConn(log, c, authenticator, packet.NewClientPool(), l.chunkRadius)
 }
 
 // Disconnect ...

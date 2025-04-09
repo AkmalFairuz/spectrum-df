@@ -59,9 +59,13 @@ type Conn struct {
 	sendBufferMu sync.Mutex
 	flushMu      sync.Mutex
 	sendBuffer   [][]byte
+
+	chunkRadius int
+
+	initialConnection bool
 }
 
-func NewConn(log *slog.Logger, conn io.ReadWriteCloser, authenticator Authenticator, pool packet.Pool) (*Conn, error) {
+func NewConn(log *slog.Logger, conn io.ReadWriteCloser, authenticator Authenticator, pool packet.Pool, chunkRadius int) (*Conn, error) {
 	c := &Conn{
 		log: log,
 
@@ -77,6 +81,8 @@ func NewConn(log *slog.Logger, conn io.ReadWriteCloser, authenticator Authentica
 		flusher: make(chan struct{}),
 
 		sendBuffer: make([][]byte, 0, 16),
+
+		chunkRadius: chunkRadius,
 	}
 
 	connectionRequestPacket, err := c.expect(packet2.IDConnectionRequest)
@@ -86,6 +92,9 @@ func NewConn(log *slog.Logger, conn io.ReadWriteCloser, authenticator Authentica
 	}
 
 	connectionRequest, _ := connectionRequestPacket.(*packet2.ConnectionRequest)
+
+	c.initialConnection = connectionRequest.InitialConnection
+
 	addr, err := net.ResolveUDPAddr("udp", connectionRequest.Addr)
 	if err != nil {
 		_ = c.Close()
@@ -276,7 +285,7 @@ func (c *Conn) IdentityData() login.IdentityData {
 
 // ChunkRadius ...
 func (c *Conn) ChunkRadius() int {
-	return 16
+	return c.chunkRadius
 }
 
 // ClientCacheEnabled ...
@@ -354,7 +363,7 @@ func (c *Conn) StartGameContext(_ context.Context, data minecraft.GameData) (err
 		return err
 	}
 
-	if err := c.WritePacket(&packet.ChunkRadiusUpdated{ChunkRadius: 16}); err != nil {
+	if err := c.WritePacket(&packet.ChunkRadiusUpdated{ChunkRadius: int32(c.ChunkRadius())}); err != nil {
 		return err
 	}
 
@@ -366,6 +375,11 @@ func (c *Conn) StartGameContext(_ context.Context, data minecraft.GameData) (err
 		return err
 	}
 	return
+}
+
+// InitialConnection ...
+func (c *Conn) InitialConnection() bool {
+	return c.initialConnection
 }
 
 // Close ...
