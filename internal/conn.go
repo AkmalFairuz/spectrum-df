@@ -410,7 +410,7 @@ func (c *Conn) Close() (err error) {
 }
 
 // read reads a packet from the reader and returns it.
-func (c *Conn) read() (packet.Packet, error) {
+func (c *Conn) read() (pk packet.Packet, err error) {
 	select {
 	case <-c.ch:
 		return nil, errors.New("connection closed")
@@ -443,7 +443,12 @@ func (c *Conn) read() (packet.Packet, error) {
 		if !ok {
 			return nil, fmt.Errorf("unknown packet ID %v", header.PacketID)
 		}
-		pk := factory()
+		pk = factory()
+		defer func() {
+			if r := recover(); r != nil {
+				err = fmt.Errorf("panic while reading packet %v: %v", header.PacketID, r)
+			}
+		}()
 		pk.Marshal(protocol.NewReader(buf, c.shieldID, false))
 		return c.translatePacket(pk, false), nil
 	}
