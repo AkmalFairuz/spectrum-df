@@ -10,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -58,7 +59,7 @@ type Conn struct {
 
 	sendBufferMu sync.Mutex
 	flushMu      sync.Mutex
-	sendBuffer   [][]byte
+	sendBuffer   []packet.Packet
 
 	chunkRadius int
 
@@ -80,7 +81,7 @@ func NewConn(log *slog.Logger, conn io.ReadWriteCloser, authenticator Authentica
 		ch:      make(chan struct{}),
 		flusher: make(chan struct{}),
 
-		sendBuffer: make([][]byte, 0, 16),
+		sendBuffer: make([]packet.Packet, 0, 64),
 
 		chunkRadius: chunkRadius,
 	}
@@ -184,20 +185,7 @@ func (c *Conn) WritePacket(pk packet.Packet) error {
 		return errors.New("connection closed")
 	}
 
-	buf := BufferPool.Get().(*bytes.Buffer)
-	defer func() {
-		buf.Reset()
-		BufferPool.Put(buf)
-	}()
-
-	pk = c.translatePacket(pk, true)
-	c.header.PacketID = pk.ID()
-	if err := c.header.Write(buf); err != nil {
-		return err
-	}
-
-	pk.Marshal(protocol.NewWriter(buf, c.shieldID))
-	c.sendBuffer = append(c.sendBuffer, append([]byte(nil), buf.Bytes()...))
+	c.sendBuffer = append(c.sendBuffer, pk)
 	return nil
 }
 
@@ -220,12 +208,14 @@ func (c *Conn) Flush() error {
 // internalFlush ...
 func (c *Conn) internalFlush() error {
 	c.sendBufferMu.Lock()
-
 	sendBufferLen := len(c.sendBuffer)
 	if sendBufferLen == 0 {
 		c.sendBufferMu.Unlock()
 		return nil
 	}
+	sendBuffer := slices.Clone(c.sendBuffer)
+	c.sendBuffer = c.sendBuffer[:0]
+	c.sendBufferMu.Unlock()
 
 	buf := BufferPool.Get().(*bytes.Buffer)
 	defer func() {
@@ -234,24 +224,30 @@ func (c *Conn) internalFlush() error {
 	}()
 
 	if err := protocol.WriteVaruint32(buf, uint32(sendBufferLen)); err != nil {
-		c.sendBufferMu.Unlock()
 		return err
 	}
 
-	for i, b := range c.sendBuffer {
+	buf2 := BufferPool.Get().(*bytes.Buffer)
+	defer func() {
+		buf2.Reset()
+		BufferPool.Put(buf2)
+	}()
+
+	for i, pk := range sendBuffer {
+		pk = c.translatePacket(pk, true)
+		b, err := c.marshalPacket(buf2, pk)
+		if err != nil {
+			return err
+		}
 		if err := protocol.WriteVaruint32(buf, uint32(len(b))); err != nil {
-			c.sendBufferMu.Unlock()
 			return err
 		}
 		if _, err := buf.Write(b); err != nil {
-			c.sendBufferMu.Unlock()
 			return err
 		}
-		c.sendBuffer[i] = nil // Improve GC
+		sendBuffer[i] = nil // Improve GC
+		buf2.Reset()
 	}
-
-	c.sendBuffer = c.sendBuffer[:0]
-	c.sendBufferMu.Unlock()
 
 	c.flushMu.Lock()
 	defer c.flushMu.Unlock()
@@ -271,6 +267,15 @@ func (c *Conn) internalFlush() error {
 	out[0] = flags
 	copy(out[1:], payload)
 	return c.writer.Write(out)
+}
+
+func (c *Conn) marshalPacket(buf *bytes.Buffer, pk packet.Packet) ([]byte, error) {
+	c.header.PacketID = pk.ID()
+	if err := c.header.Write(buf); err != nil {
+		return nil, err
+	}
+	pk.Marshal(protocol.NewWriter(buf, c.shieldID))
+	return append([]byte(nil), buf.Bytes()...), nil
 }
 
 // ClientData ...
