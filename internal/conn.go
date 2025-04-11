@@ -81,7 +81,7 @@ func NewConn(log *slog.Logger, conn io.ReadWriteCloser, authenticator Authentica
 		ch:      make(chan struct{}),
 		flusher: make(chan struct{}),
 
-		sendBuffer: make([]packet.Packet, 0, 64),
+		sendBuffer: make([]packet.Packet, 0, 256),
 
 		chunkRadius: chunkRadius,
 	}
