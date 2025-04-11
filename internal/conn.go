@@ -86,6 +86,9 @@ func NewConn(log *slog.Logger, conn io.ReadWriteCloser, authenticator Authentica
 		chunkRadius: chunkRadius,
 	}
 
+	c.running.Add(1)
+	go c.handleFlusher()
+
 	connectionRequestPacket, err := c.expect(packet2.IDConnectionRequest)
 	if err != nil {
 		_ = c.Close()
@@ -120,9 +123,6 @@ func NewConn(log *slog.Logger, conn io.ReadWriteCloser, authenticator Authentica
 		return nil, errors.New("authentication failed")
 	}
 
-	c.running.Add(1)
-	go c.handleFlusher()
-
 	c.runtimeID = uint64(crc32.ChecksumIEEE([]byte(c.identityData.XUID)))
 	c.uniqueID = int64(c.runtimeID)
 	if err := c.WritePacket(&packet2.ConnectionResponse{RuntimeID: c.runtimeID, UniqueID: c.uniqueID}); err != nil {
@@ -138,6 +138,9 @@ func (c *Conn) handleFlusher() {
 	ticker := time.NewTicker(time.Second / 20)
 	defer ticker.Stop()
 	defer c.running.Done()
+	defer func() {
+		_ = c.conn.Close()
+	}()
 
 	for {
 		select {
@@ -404,7 +407,6 @@ func (c *Conn) Close() (err error) {
 
 		c.running.Wait()
 		close(c.flusher)
-		_ = c.conn.Close()
 		return
 	}
 }
