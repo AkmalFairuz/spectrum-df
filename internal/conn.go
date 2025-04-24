@@ -64,6 +64,8 @@ type Conn struct {
 	chunkRadius int
 
 	initialConnection bool
+
+	once sync.Once
 }
 
 func NewConn(log *slog.Logger, conn io.ReadWriteCloser, authenticator Authenticator, pool packet.Pool, chunkRadius int) (*Conn, error) {
@@ -140,25 +142,27 @@ func (c *Conn) Respond() {
 // handleFlusher ...
 func (c *Conn) handleFlusher() {
 	ticker := time.NewTicker(time.Second / 20)
-	defer ticker.Stop()
-	defer c.running.Done()
 	defer func() {
 		_ = c.conn.Close()
 	}()
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
 			if err := c.internalFlush(); err != nil {
+				c.running.Done()
 				_ = c.Close()
 				return
 			}
 		case <-c.flusher:
 			if err := c.internalFlush(); err != nil {
+				c.running.Done()
 				_ = c.Close()
 				return
 			}
 		case <-c.ch:
+			c.running.Done()
 			return
 		}
 	}
@@ -395,11 +399,8 @@ func (c *Conn) InitialConnection() bool {
 }
 
 // Close ...
-func (c *Conn) Close() (err error) {
-	select {
-	case <-c.ch:
-		return errors.New("connection already closed")
-	default:
+func (c *Conn) Close() error {
+	c.once.Do(func() {
 		close(c.ch)
 
 		c.sendBufferMu.Lock()
@@ -411,8 +412,8 @@ func (c *Conn) Close() (err error) {
 
 		c.running.Wait()
 		close(c.flusher)
-		return
-	}
+	})
+	return nil
 }
 
 // read reads a packet from the reader and returns it.
