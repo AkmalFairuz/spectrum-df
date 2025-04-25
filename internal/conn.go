@@ -400,6 +400,9 @@ func (c *Conn) InitialConnection() bool {
 
 // Close ...
 func (c *Conn) Close() error {
+	if c == nil {
+		return errors.New("conn is nil")
+	}
 	c.once.Do(func() {
 		close(c.ch)
 
