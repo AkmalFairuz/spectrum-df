@@ -90,6 +90,7 @@ func NewConn(log *slog.Logger, conn io.ReadWriteCloser, authenticator Authentica
 
 	connectionRequestPacket, err := c.expect(packet2.IDConnectionRequest)
 	if err != nil {
+		_ = c.Close()
 		return nil, err
 	}
 
@@ -99,21 +100,25 @@ func NewConn(log *slog.Logger, conn io.ReadWriteCloser, authenticator Authentica
 
 	addr, err := net.ResolveUDPAddr("udp", connectionRequest.Addr)
 	if err != nil {
+		_ = c.Close()
 		return nil, err
 	}
 
 	c.addr = addr
 	if err := json.Unmarshal(connectionRequest.ClientData, &c.clientData); err != nil {
+		_ = c.Close()
 		return nil, err
 	}
 
 	if err := json.Unmarshal(connectionRequest.IdentityData, &c.identityData); err != nil {
+		_ = c.Close()
 		return nil, err
 	}
 
 	c.log = c.log.With("username", c.identityData.DisplayName)
 
 	if authenticator != nil && !authenticator(c.identityData, connectionRequest.Token) {
+		_ = c.Close()
 		return nil, errors.New("authentication failed")
 	}
 
@@ -121,6 +126,7 @@ func NewConn(log *slog.Logger, conn io.ReadWriteCloser, authenticator Authentica
 	c.uniqueID = int64(c.runtimeID)
 	_ = c.WritePacket(&packet2.ConnectionResponse{RuntimeID: c.runtimeID, UniqueID: c.uniqueID})
 	if err := c.internalFlush(); err != nil {
+		_ = c.Close()
 		return nil, err
 	}
 
