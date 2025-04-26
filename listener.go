@@ -74,13 +74,15 @@ func (l *Listener) internalAccept() error {
 		conn, err := l.authenticateConn(addr, c)
 		if err != nil {
 			l.log.Error("failed to authenticate connection", "remote_addr", addr, "err", err)
-			_, _ = conn.Close(), c.Close()
+			_ = conn.Close()
+			_ = c.Close()
 			return
 		}
 
 		l.closeMu.Lock()
 		if l.closed {
-			_, _ = conn.Close(), c.Close()
+			_ = conn.Close()
+			_ = c.Close()
 		} else {
 			l.incoming <- conn
 		}

@@ -142,9 +142,6 @@ func (c *Conn) Respond() {
 // handleFlusher ...
 func (c *Conn) handleFlusher() {
 	ticker := time.NewTicker(time.Second / 20)
-	defer func() {
-		_ = c.conn.Close()
-	}()
 	defer ticker.Stop()
 
 	for {
@@ -412,6 +409,8 @@ func (c *Conn) Close() error {
 
 		c.running.Wait()
 		close(c.flusher)
+
+		_ = c.conn.Close()
 	})
 	return nil
 }
