@@ -164,9 +164,9 @@ func (c *Conn) ReadPacket() (packet.Packet, error) {
 	pk, err := c.read()
 	if err != nil {
 		if !errors.Is(err, context.Canceled) && !strings.Contains(err.Error(), "connection reset by peer") {
-			c.log.Error("error reading packet", err)
+			c.log.Error("error reading packet", "err", err)
 		} else {
-			c.log.Debug("ignored error reading packet", err)
+			c.log.Debug("ignored error reading packet", "err", err)
 		}
 		return nil, err
 	}
@@ -391,6 +391,9 @@ func (c *Conn) InitialConnection() bool {
 
 // Close ...
 func (c *Conn) Close() error {
+	if c == nil {
+		return errors.New("conn is nil")
+	}
 	c.once.Do(func() {
 		close(c.ch)
 
