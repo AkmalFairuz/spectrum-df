@@ -14,6 +14,8 @@ github.com/akmalfairuz/spectrum v0.0.0-20250408113508-a0cb9280c082 h1:TVw1/wEJXN
 github.com/akmalfairuz/spectrum v0.0.0-20250408113508-a0cb9280c082/go.mod h1:09P7fYR4ACmAEXQPg9aa3TsCBumG3ktbE7Jvb69Nn24=
 github.com/akmalfairuz/spectrum v0.0.0-20250409165357-673396357fd4 h1:/bQ5OikBPVVWINmdBL8JwK9xHgKIZ4WgD3te6GFpKpY=
 github.com/akmalfairuz/spectrum v0.0.0-20250409165357-673396357fd4/go.mod h1:09P7fYR4ACmAEXQPg9aa3TsCBumG3ktbE7Jvb69Nn24=
+github.com/akmalfairuz/spectrum v0.0.0-20250513111426-6443025d3c2c h1:BQS5c+VOzZQBBfq40DR9KPoP3yFiF0H1FSEKgM8iIuc=
+github.com/akmalfairuz/spectrum v0.0.0-20250513111426-6443025d3c2c/go.mod h1:09P7fYR4ACmAEXQPg9aa3TsCBumG3ktbE7Jvb69Nn24=
 github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239/go.mod h1:2FmKhYUyUczH0OGQWaF5ceTx0UBShxjsH6f8oGKYe2c=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/bradfitz/go-smtpd v0.0.0-20170404230938-deb6d6237625/go.mod h1:HYsPBTaaSFSlLx/70C2HPIMNZpVV8+vt/A+FMnYP11g=

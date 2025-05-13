@@ -64,6 +64,7 @@ type Conn struct {
 	chunkRadius int
 
 	initialConnection bool
+	connectArgs       []string
 
 	once sync.Once
 }
@@ -96,7 +97,7 @@ func NewConn(log *slog.Logger, conn io.ReadWriteCloser, authenticator Authentica
 
 	connectionRequest, _ := connectionRequestPacket.(*packet2.ConnectionRequest)
 
-	c.initialConnection = connectionRequest.InitialConnection
+	c.initialConnection, c.connectArgs = connectionRequest.InitialConnection, connectionRequest.Args
 
 	addr, err := net.ResolveUDPAddr("udp", connectionRequest.Addr)
 	if err != nil {
@@ -393,6 +394,11 @@ func (c *Conn) StartGameContext(_ context.Context, data minecraft.GameData) (err
 // InitialConnection ...
 func (c *Conn) InitialConnection() bool {
 	return c.initialConnection
+}
+
+// ConnectArgs ...
+func (c *Conn) ConnectArgs() []string {
+	return c.connectArgs
 }
 
 // Close ...
