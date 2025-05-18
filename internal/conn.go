@@ -50,6 +50,8 @@ type Conn struct {
 	shieldID int32
 	latency  int64
 
+	clientPacketLoss float64
+
 	header *packet.Header
 	pool   packet.Pool
 
@@ -180,6 +182,7 @@ func (c *Conn) ReadPacket() (packet.Packet, error) {
 
 	if pk, ok := pk.(*packet2.Latency); ok {
 		c.latency = (time.Now().UnixMilli() - pk.Timestamp) + pk.Latency
+		c.clientPacketLoss = float64(pk.ClientPacketLoss)
 		_ = c.WritePacket(&packet2.Latency{Timestamp: 0, Latency: c.latency})
 		return c.ReadPacket()
 	}
@@ -315,6 +318,11 @@ func (c *Conn) RemoteAddr() net.Addr {
 // Latency ...
 func (c *Conn) Latency() time.Duration {
 	return time.Duration(c.latency)
+}
+
+// ClientPacketLossPercentage ...
+func (c *Conn) ClientPacketLossPercentage() float64 {
+	return c.clientPacketLoss
 }
 
 // StartGameContext ...
