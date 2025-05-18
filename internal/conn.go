@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	proto "github.com/cooldogedev/spectrum/protocol"
@@ -48,9 +49,9 @@ type Conn struct {
 	uniqueID  int64
 
 	shieldID int32
-	latency  int64
+	latency  atomic.Int64
 
-	clientPacketLoss float64
+	clientPacketLoss atomic.Value
 
 	header *packet.Header
 	pool   packet.Pool
@@ -90,6 +91,8 @@ func NewConn(log *slog.Logger, conn io.ReadWriteCloser, authenticator Authentica
 
 		chunkRadius: chunkRadius,
 	}
+	c.latency.Store(0)
+	c.clientPacketLoss.Store(float64(0))
 
 	connectionRequestPacket, err := c.expect(packet2.IDConnectionRequest)
 	if err != nil {
@@ -181,9 +184,9 @@ func (c *Conn) ReadPacket() (packet.Packet, error) {
 	}
 
 	if pk, ok := pk.(*packet2.Latency); ok {
-		c.latency = (time.Now().UnixMilli() - pk.Timestamp) + pk.Latency
-		c.clientPacketLoss = float64(pk.ClientPacketLoss)
-		_ = c.WritePacket(&packet2.Latency{Timestamp: 0, Latency: c.latency})
+		c.latency.Store((time.Now().UnixMilli() - pk.Timestamp) + pk.Latency)
+		c.clientPacketLoss.Store(float64(pk.ClientPacketLoss))
+		_ = c.WritePacket(&packet2.Latency{Timestamp: 0, Latency: c.latency.Load()})
 		return c.ReadPacket()
 	}
 	return pk, nil
@@ -317,12 +320,12 @@ func (c *Conn) RemoteAddr() net.Addr {
 
 // Latency ...
 func (c *Conn) Latency() time.Duration {
-	return time.Duration(c.latency)
+	return time.Duration(c.latency.Load())
 }
 
 // ClientPacketLossPercentage ...
 func (c *Conn) ClientPacketLossPercentage() float64 {
-	return c.clientPacketLoss
+	return c.clientPacketLoss.Load().(float64)
 }
 
 // StartGameContext ...
