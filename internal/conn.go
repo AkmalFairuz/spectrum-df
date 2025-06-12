@@ -427,10 +427,12 @@ func (c *Conn) Close() error {
 		c.sendBuffer = nil
 		c.sendBufferMu.Unlock()
 
-		c.running.Wait()
-		close(c.flusher)
+		go func() {
+			c.running.Wait()
+			close(c.flusher)
 
-		_ = c.conn.Close()
+			_ = c.conn.Close()
+		}()
 	})
 	return nil
 }
