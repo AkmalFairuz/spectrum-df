@@ -87,7 +87,7 @@ func NewConn(log *slog.Logger, conn io.ReadWriteCloser, authenticator Authentica
 		ch:      make(chan struct{}),
 		flusher: make(chan struct{}),
 
-		sendBuffer: make([]packet.Packet, 0, 256),
+		sendBuffer: make([]packet.Packet, 0, 512),
 
 		chunkRadius: chunkRadius,
 	}
@@ -200,6 +200,12 @@ func (c *Conn) WritePacket(pk packet.Packet) error {
 		return errors.New("connection closed")
 	}
 
+	const maxSendBufferSize = 8192
+	if len(c.sendBuffer) >= maxSendBufferSize {
+		c.sendBuffer = nil // trigger handleFlusher to close the connection
+		return errors.New("send buffer is full, cannot write packet")
+	}
+
 	c.sendBuffer = append(c.sendBuffer, pk)
 	return nil
 }
@@ -223,6 +229,9 @@ func (c *Conn) Flush() error {
 // internalFlush ...
 func (c *Conn) internalFlush() error {
 	c.sendBufferMu.Lock()
+	if c.sendBuffer == nil {
+		return errors.New("connection closed due to full send buffer")
+	}
 	sendBufferLen := len(c.sendBuffer)
 	if sendBufferLen == 0 {
 		c.sendBufferMu.Unlock()
