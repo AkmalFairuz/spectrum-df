@@ -202,6 +202,9 @@ func (c *Conn) WritePacket(pk packet.Packet) error {
 
 	const maxSendBufferSize = 8192
 	if len(c.sendBuffer) >= maxSendBufferSize {
+		for i := range c.sendBuffer {
+			c.sendBuffer[i] = nil // Improve GC
+		}
 		c.sendBuffer = nil // trigger handleFlusher to close the connection
 		return errors.New("send buffer is full, cannot write packet")
 	}
