@@ -68,6 +68,7 @@ type Conn struct {
 
 	initialConnection bool
 	connectArgs       []string
+	clientProtocol    int
 
 	once sync.Once
 }
@@ -102,7 +103,7 @@ func NewConn(log *slog.Logger, conn io.ReadWriteCloser, authenticator Authentica
 
 	connectionRequest, _ := connectionRequestPacket.(*packet2.ConnectionRequest)
 
-	c.initialConnection, c.connectArgs = connectionRequest.InitialConnection, connectionRequest.Args
+	c.initialConnection, c.connectArgs, c.clientProtocol = connectionRequest.InitialConnection, connectionRequest.Args, int(connectionRequest.ClientProtocol)
 
 	addr, err := net.ResolveUDPAddr("udp", connectionRequest.Addr)
 	if err != nil {
@@ -200,7 +201,7 @@ func (c *Conn) WritePacket(pk packet.Packet) error {
 		return errors.New("connection closed")
 	}
 
-	const maxSendBufferSize = 8192
+	const maxSendBufferSize = 4096
 	if len(c.sendBuffer) >= maxSendBufferSize {
 		for i := range c.sendBuffer {
 			c.sendBuffer[i] = nil // Improve GC
@@ -211,6 +212,11 @@ func (c *Conn) WritePacket(pk packet.Packet) error {
 
 	c.sendBuffer = append(c.sendBuffer, pk)
 	return nil
+}
+
+// ClientProtocol ...
+func (c *Conn) ClientProtocol() int {
+	return c.clientProtocol
 }
 
 // Flush ...
