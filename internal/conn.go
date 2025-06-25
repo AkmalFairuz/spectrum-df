@@ -239,6 +239,7 @@ func (c *Conn) Flush() error {
 func (c *Conn) internalFlush() error {
 	c.sendBufferMu.Lock()
 	if c.sendBuffer == nil {
+		c.sendBufferMu.Unlock()
 		return errors.New("connection closed due to full send buffer")
 	}
 	sendBufferLen := len(c.sendBuffer)
