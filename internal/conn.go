@@ -492,6 +492,8 @@ func (c *Conn) read() (packets []packet.Packet, err error) {
 			}
 		}()
 
+		packets = make([]packet.Packet, 0, packetLen)
+
 		for i := uint32(0); i < packetLen; i++ {
 			var bufLen uint32
 			if err := protocol.Varuint32(buf, &bufLen); err != nil {
@@ -508,6 +510,12 @@ func (c *Conn) read() (packets []packet.Packet, err error) {
 			pk := factory()
 			reader := protocol.NewReader(buf2, c.shieldID, false)
 			pk.Marshal(reader)
+			if latencyPacket, ok := pk.(*packet2.Latency); ok {
+				c.latency.Store((time.Now().UnixMilli() - latencyPacket.Timestamp) + latencyPacket.Latency)
+				c.clientPacketLoss.Store(float64(latencyPacket.ClientPacketLoss))
+				_ = c.WritePacket(&packet2.Latency{Timestamp: 0, Latency: c.latency.Load()})
+				continue
+			}
 			packets = append(packets, c.translatePacket(pk, false))
 		}
 
