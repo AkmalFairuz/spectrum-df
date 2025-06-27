@@ -525,14 +525,17 @@ func (c *Conn) read() (packets []packet.Packet, err error) {
 
 // expect reads a packet from the connection and expects it to have the ID passed.
 func (c *Conn) expect(id uint32) (packet.Packet, error) {
-	pk, err := c.ReadPacket()
+	packets, err := c.ReadPackets()
 	if err != nil {
 		return nil, err
 	}
 
-	if pk.ID() == id {
-		return pk, nil
+	for _, pk := range packets {
+		if pk.ID() == id {
+			return pk, nil
+		}
 	}
+
 	return c.expect(id)
 }
 
