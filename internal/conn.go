@@ -157,12 +157,14 @@ func (c *Conn) handleFlusher() {
 			if err := c.internalFlush(); err != nil {
 				c.running.Done()
 				_ = c.Close()
+				c.log.Error("error flushing packets", "err", err)
 				return
 			}
 		case <-c.flusher:
 			if err := c.internalFlush(); err != nil {
 				c.running.Done()
 				_ = c.Close()
+				c.log.Error("error flushing packets", "err", err)
 				return
 			}
 		case <-c.ch:
