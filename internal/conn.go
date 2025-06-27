@@ -174,23 +174,22 @@ func (c *Conn) handleFlusher() {
 
 // ReadPacket ...
 func (c *Conn) ReadPacket() (packet.Packet, error) {
-	pk, err := c.read()
+	return nil, errors.New("please use c.ReadPackets()")
+}
+
+// ReadPackets reads multiple packets from the connection and returns them as a slice.
+func (c *Conn) ReadPackets() ([]packet.Packet, error) {
+	packets, err := c.read()
 	if err != nil {
 		if !errors.Is(err, context.Canceled) && !strings.Contains(err.Error(), "connection reset by peer") {
-			c.log.Error("error reading packet", "err", err)
+			c.log.Error("error reading packets", "err", err)
 		} else {
-			c.log.Debug("ignored error reading packet", "err", err)
+			c.log.Debug("ignored error reading packets", "err", err)
 		}
 		return nil, err
 	}
 
-	if pk, ok := pk.(*packet2.Latency); ok {
-		c.latency.Store((time.Now().UnixMilli() - pk.Timestamp) + pk.Latency)
-		c.clientPacketLoss.Store(float64(pk.ClientPacketLoss))
-		_ = c.WritePacket(&packet2.Latency{Timestamp: 0, Latency: c.latency.Load()})
-		return c.ReadPacket()
-	}
-	return pk, nil
+	return packets, nil
 }
 
 // WritePacket ...
@@ -456,8 +455,8 @@ func (c *Conn) Close() error {
 	return nil
 }
 
-// read reads a packet from the reader and returns it.
-func (c *Conn) read() (pk packet.Packet, err error) {
+// read reads packets from the reader and returns it.
+func (c *Conn) read() (packets []packet.Packet, err error) {
 	select {
 	case <-c.ch:
 		return nil, errors.New("connection closed")
@@ -482,22 +481,37 @@ func (c *Conn) read() (pk packet.Packet, err error) {
 		}
 
 		header := &packet.Header{}
-		if err := header.Read(buf); err != nil {
-			return nil, err
+		var packetLen uint32
+		if err := protocol.Varuint32(buf, &packetLen); err != nil {
+			return nil, fmt.Errorf("read packet length: %w", err)
 		}
 
-		factory, ok := c.pool[header.PacketID]
-		if !ok {
-			return nil, fmt.Errorf("unknown packet ID %v", header.PacketID)
-		}
-		pk = factory()
 		defer func() {
 			if r := recover(); r != nil {
 				err = fmt.Errorf("panic while reading packet %v: %v", header.PacketID, r)
 			}
 		}()
-		pk.Marshal(protocol.NewReader(buf, c.shieldID, false))
-		return c.translatePacket(pk, false), nil
+
+		for i := uint32(0); i < packetLen; i++ {
+			var bufLen uint32
+			if err := protocol.Varuint32(buf, &bufLen); err != nil {
+				return nil, fmt.Errorf("read packet buffer length: %w", err)
+			}
+			buf2 := bytes.NewBuffer(buf.Next(int(bufLen)))
+			if err := header.Read(buf2); err != nil {
+				return nil, fmt.Errorf("read packet header: %w", err)
+			}
+			factory, ok := c.pool[header.PacketID]
+			if !ok {
+				return nil, fmt.Errorf("unknown packet ID %v", header.PacketID)
+			}
+			pk := factory()
+			reader := protocol.NewReader(buf2, c.shieldID, false)
+			pk.Marshal(reader)
+			packets = append(packets, c.translatePacket(pk, false))
+		}
+
+		return packets, nil
 	}
 }
 
