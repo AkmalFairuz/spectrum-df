@@ -330,7 +330,7 @@ func (c *Conn) ChunkRadius() int {
 
 // ClientCacheEnabled ...
 func (c *Conn) ClientCacheEnabled() bool {
-	return false
+	return c.clientProtocol == protocol.CurrentProtocol
 }
 
 // RemoteAddr ...
