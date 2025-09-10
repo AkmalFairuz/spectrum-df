@@ -249,6 +249,9 @@ func (c *Conn) internalFlush() error {
 		return nil
 	}
 	sendBuffer := slices.Clone(c.sendBuffer)
+	for i := range c.sendBuffer {
+		c.sendBuffer[i] = nil
+	}
 	c.sendBuffer = c.sendBuffer[:0]
 	c.sendBufferMu.Unlock()
 
