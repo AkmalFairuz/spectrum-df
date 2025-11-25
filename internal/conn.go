@@ -283,6 +283,7 @@ func (c *Conn) internalFlush() error {
 	payload := buf.Bytes()
 	flags := byte(0)
 	if len(payload) > compressionThreshold {
+		flags |= flagPacketCompressed
 		return c.writer.Write([]byte{flags}, snappy.Encode(nil, payload))
 	}
 	return c.writer.Write([]byte{flags}, payload)
