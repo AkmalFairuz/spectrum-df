@@ -205,7 +205,7 @@ func (c *Conn) WritePacket(pk packet.Packet) error {
 	defer c.sendBufferMu.Unlock()
 	if len(c.sendBuffer) >= maxSendBuffer {
 		if conn := c.conn; conn != nil {
-			_ = c.conn.Close()
+			_ = conn.Close()
 		}
 		return errors.New("send buffer is full")
 	}
