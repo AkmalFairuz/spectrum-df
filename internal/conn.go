@@ -227,11 +227,21 @@ func (c *Conn) Flush() error {
 		return nil
 	}
 
+	safeSendToChannel(c.flusher, struct{}{})
+	return nil
+}
+
+// safeSendToChannel ...
+func safeSendToChannel[T any](ch chan T, data T) {
+	defer func() {
+		if r := recover(); r != nil {
+			return
+		}
+	}()
 	select {
-	case c.flusher <- struct{}{}:
+	case ch <- data:
 	default:
 	}
-	return nil
 }
 
 // internalFlush ...
