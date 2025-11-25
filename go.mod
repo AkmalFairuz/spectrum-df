@@ -23,7 +23,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/google/pprof v0.0.0-20250317173921-a4b03ec1a45e // indirect
-	github.com/klauspost/compress v1.18.1 // indirect
+	github.com/klauspost/compress v1.18.2-0.20251024102338-701ca28bd550 // indirect
 	github.com/muhammadmuzzammil1998/jsonc v1.0.0 // indirect
 	github.com/onsi/ginkgo/v2 v2.23.3 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
@@ -41,4 +41,4 @@ require (
 	golang.org/x/tools v0.38.0 // indirect
 )
 
-replace github.com/cooldogedev/spectrum => github.com/akmalfairuz/spectrum v0.0.0-20250624133918-3d72dad43a54
+replace github.com/cooldogedev/spectrum => github.com/akmalfairuz/spectrum v0.0.0-20251125122121-d58650735f50

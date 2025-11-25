@@ -20,6 +20,7 @@ github.com/akmalfairuz/spectrum v0.0.0-20250514042411-24d8e9a89cbe h1:wdUTl7etWG
 github.com/akmalfairuz/spectrum v0.0.0-20250514042411-24d8e9a89cbe/go.mod h1:4ZlZvYVUHIReLkqtF3bY5LC1b4kWVUbkEM1QIWfAOb8=
 github.com/akmalfairuz/spectrum v0.0.0-20250624133918-3d72dad43a54 h1:Oc1WwuOfJTJTU4IJs3Ui0dSwtRGDjFChAHf9C7CrWEI=
 github.com/akmalfairuz/spectrum v0.0.0-20250624133918-3d72dad43a54/go.mod h1:4ZlZvYVUHIReLkqtF3bY5LC1b4kWVUbkEM1QIWfAOb8=
+github.com/akmalfairuz/spectrum v0.0.0-20251125122121-d58650735f50/go.mod h1:1PZ4ttkc6MxzdkoHBtwQWp3D+R8wD5fpmAQ0a4VQ7ls=
 github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239/go.mod h1:2FmKhYUyUczH0OGQWaF5ceTx0UBShxjsH6f8oGKYe2c=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/bradfitz/go-smtpd v0.0.0-20170404230938-deb6d6237625/go.mod h1:HYsPBTaaSFSlLx/70C2HPIMNZpVV8+vt/A+FMnYP11g=
@@ -104,6 +105,7 @@ github.com/klauspost/compress v1.18.0 h1:c/Cqfb0r+Yi+JtIEq73FWXVkRonBlf0CRNYc8Zt
 github.com/klauspost/compress v1.18.0/go.mod h1:2Pp+KzxcywXVXMr50+X0Q/Lsb43OQHYWRCY2AiWywWQ=
 github.com/klauspost/compress v1.18.1 h1:bcSGx7UbpBqMChDtsF28Lw6v/G94LPrrbMbdC3JH2co=
 github.com/klauspost/compress v1.18.1/go.mod h1:ZQFFVG+MdnR0P+l6wpXgIL4NTtwiKIdBnrBd8Nrxr+0=
+github.com/klauspost/compress v1.18.2-0.20251024102338-701ca28bd550/go.mod h1:ZQFFVG+MdnR0P+l6wpXgIL4NTtwiKIdBnrBd8Nrxr+0=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/pty v1.1.3/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=

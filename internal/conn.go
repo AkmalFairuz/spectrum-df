@@ -10,7 +10,6 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -18,8 +17,8 @@ import (
 
 	proto "github.com/cooldogedev/spectrum/protocol"
 	packet2 "github.com/cooldogedev/spectrum/server/packet"
-	"github.com/golang/snappy"
 	"github.com/google/uuid"
+	"github.com/klauspost/compress/snappy"
 	"github.com/sandertv/gophertunnel/minecraft"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/login"
@@ -30,7 +29,8 @@ const (
 	flagPacketCompressed = 0x01
 	flagPacketNotNeeded  = 0x02
 
-	compressionThreshold = 256
+	compressionThreshold = 128
+	maxSendBuffer        = 4096
 )
 
 type Conn struct {
@@ -69,6 +69,8 @@ type Conn struct {
 	initialConnection bool
 	connectArgs       []string
 	clientProtocol    int
+
+	writeBuffer []byte
 
 	once sync.Once
 }
@@ -196,21 +198,17 @@ func (c *Conn) ReadPackets() ([]packet.Packet, error) {
 
 // WritePacket ...
 func (c *Conn) WritePacket(pk packet.Packet) error {
+	if c == nil {
+		return errors.New("conn is nil")
+	}
 	c.sendBufferMu.Lock()
 	defer c.sendBufferMu.Unlock()
-	if c.sendBuffer == nil {
-		return errors.New("connection closed")
-	}
-
-	const maxSendBufferSize = 4096
-	if len(c.sendBuffer) >= maxSendBufferSize {
-		for i := range c.sendBuffer {
-			c.sendBuffer[i] = nil // Improve GC
+	if len(c.sendBuffer) >= maxSendBuffer {
+		if conn := c.conn; conn != nil {
+			_ = c.conn.Close()
 		}
-		c.sendBuffer = nil // trigger handleFlusher to close the connection
-		return errors.New("send buffer is full, cannot write packet")
+		return errors.New("send buffer is full")
 	}
-
 	c.sendBuffer = append(c.sendBuffer, pk)
 	return nil
 }
@@ -238,20 +236,16 @@ func (c *Conn) Flush() error {
 
 // internalFlush ...
 func (c *Conn) internalFlush() error {
+	c.flushMu.Lock()
+	defer c.flushMu.Unlock()
+
 	c.sendBufferMu.Lock()
-	if c.sendBuffer == nil {
-		c.sendBufferMu.Unlock()
-		return errors.New("connection closed due to full send buffer")
-	}
 	sendBufferLen := len(c.sendBuffer)
 	if sendBufferLen == 0 {
 		c.sendBufferMu.Unlock()
 		return nil
 	}
-	sendBuffer := slices.Clone(c.sendBuffer)
-	for i := range c.sendBuffer {
-		c.sendBuffer[i] = nil
-	}
+	sendBuffer := append([]packet.Packet(nil), c.sendBuffer...)
 	c.sendBuffer = c.sendBuffer[:0]
 	c.sendBufferMu.Unlock()
 
@@ -271,7 +265,7 @@ func (c *Conn) internalFlush() error {
 		BufferPool.Put(buf2)
 	}()
 
-	for i, pk := range sendBuffer {
+	for _, pk := range sendBuffer {
 		pk = c.translatePacket(pk, true)
 		b, err := c.marshalPacket(buf2, pk)
 		if err != nil {
@@ -283,28 +277,15 @@ func (c *Conn) internalFlush() error {
 		if _, err := buf.Write(b); err != nil {
 			return err
 		}
-		sendBuffer[i] = nil // Improve GC
 		buf2.Reset()
 	}
-
-	c.flushMu.Lock()
-	defer c.flushMu.Unlock()
 
 	payload := buf.Bytes()
 	flags := byte(0)
 	if len(payload) > compressionThreshold {
-		flags |= flagPacketCompressed
-		compressed := snappy.Encode(nil, payload)
-		out := make([]byte, 1+len(compressed))
-		out[0] = flags
-		copy(out[1:], compressed)
-		return c.writer.Write(out)
+		return c.writer.Write([]byte{flags}, snappy.Encode(nil, payload))
 	}
-
-	out := make([]byte, 1+len(payload))
-	out[0] = flags
-	copy(out[1:], payload)
-	return c.writer.Write(out)
+	return c.writer.Write([]byte{flags}, payload)
 }
 
 func (c *Conn) marshalPacket(buf *bytes.Buffer, pk packet.Packet) ([]byte, error) {
@@ -313,7 +294,7 @@ func (c *Conn) marshalPacket(buf *bytes.Buffer, pk packet.Packet) ([]byte, error
 		return nil, err
 	}
 	pk.Marshal(protocol.NewWriter(buf, c.shieldID))
-	return append([]byte(nil), buf.Bytes()...), nil
+	return buf.Bytes(), nil
 }
 
 // ClientData ...
