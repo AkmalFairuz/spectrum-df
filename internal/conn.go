@@ -183,6 +183,9 @@ func (c *Conn) ReadPacket() (packet.Packet, error) {
 
 // ReadPackets reads multiple packets from the connection and returns them as a slice.
 func (c *Conn) ReadPackets() ([]packet.Packet, error) {
+	if c == nil {
+		return nil, errors.New("conn is nil")
+	}
 	packets, err := c.read()
 	if err != nil {
 		if !errors.Is(err, context.Canceled) && !strings.Contains(err.Error(), "connection reset by peer") {
