@@ -30,7 +30,7 @@ const (
 	flagPacketNotNeeded  = 0x02
 
 	compressionThreshold = 128
-	maxSendBuffer        = 4096
+	maxSendBuffer        = 16384
 )
 
 type Conn struct {
