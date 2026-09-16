@@ -584,7 +584,6 @@ func (c *Conn) translatePacket(pk packet.Packet, serverSent bool) packet.Packet 
 		}
 	case *packet.BossEvent:
 		pk.BossEntityUniqueID = c.translateUniqueID(pk.BossEntityUniqueID, serverSent)
-		pk.PlayerUniqueID = c.translateUniqueID(pk.PlayerUniqueID, serverSent)
 	case *packet.Camera:
 		pk.CameraEntityUniqueID = c.translateUniqueID(pk.CameraEntityUniqueID, serverSent)
 		pk.TargetPlayerUniqueID = c.translateUniqueID(pk.TargetPlayerUniqueID, serverSent)
